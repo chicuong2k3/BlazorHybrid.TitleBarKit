@@ -86,12 +86,51 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         // MAUI can apply its native caption after OnWindowCreated. Disable content
         // extension and reapply the presenter chrome when the WinUI window activates.
         if (_options.HideNativeTitleBar && _window is not null)
+        {
             _window.ExtendsContentIntoTitleBar = false;
+            _window.SetTitleBar(null);
+        }
 
         presenter.IsMinimizable = _options.IsMinimizable;
         presenter.IsMaximizable = _options.IsMaximizable;
         presenter.IsResizable = _options.IsResizable;
-        presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: !_options.HideNativeTitleBar);
+        presenter.SetBorderAndTitleBar(
+            hasBorder: !_options.HideNativeTitleBar,
+            hasTitleBar: !_options.HideNativeTitleBar);
+
+        if (_options.HideNativeTitleBar)
+            ApplyNativeWindowStyles();
+    }
+
+    private void ApplyNativeWindowStyles()
+    {
+        if (_windowHandle == 0) return;
+
+        var style = NativeMethods.GetWindowLongPtr(_windowHandle, NativeMethods.GwlStyle).ToInt64();
+        style |= NativeMethods.WsSysMenu;
+        style = _options.IsResizable
+            ? style | NativeMethods.WsThickFrame
+            : style & ~NativeMethods.WsThickFrame;
+        style = _options.IsMinimizable
+            ? style | NativeMethods.WsMinimizeBox
+            : style & ~NativeMethods.WsMinimizeBox;
+        style = _options.IsMaximizable
+            ? style | NativeMethods.WsMaximizeBox
+            : style & ~NativeMethods.WsMaximizeBox;
+
+        NativeMethods.SetWindowLongPtr(_windowHandle, NativeMethods.GwlStyle, (nint)style);
+        NativeMethods.SetWindowPos(
+            _windowHandle,
+            0,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SwpNoMove |
+            NativeMethods.SwpNoSize |
+            NativeMethods.SwpNoZOrder |
+            NativeMethods.SwpNoActivate |
+            NativeMethods.SwpFrameChanged);
     }
 
     private void OnWindowActivated(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
