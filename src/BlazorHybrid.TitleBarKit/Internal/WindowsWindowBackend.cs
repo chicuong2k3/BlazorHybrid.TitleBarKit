@@ -87,10 +87,7 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: !_options.HideNativeTitleBar);
     }
 
-    private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
-    {
-        if (args.DidPresenterChange) PublishState();
-    }
+    private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args) => PublishState();
 
     private void PublishState()
     {
