@@ -26,6 +26,7 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         _appWindow = window.AppWindow;
         _windowHandle = WindowNative.GetWindowHandle(window);
         ConfigurePresenter();
+        _window.Activated += OnWindowActivated;
         _appWindow.Changed += OnAppWindowChanged;
         PublishState();
     }
@@ -81,10 +82,22 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
     private void ConfigurePresenter()
     {
         if (Presenter is not { } presenter) return;
+
+        // MAUI can apply its native caption after OnWindowCreated. Disable content
+        // extension and reapply the presenter chrome when the WinUI window activates.
+        if (_options.HideNativeTitleBar && _window is not null)
+            _window.ExtendsContentIntoTitleBar = false;
+
         presenter.IsMinimizable = _options.IsMinimizable;
         presenter.IsMaximizable = _options.IsMaximizable;
         presenter.IsResizable = _options.IsResizable;
         presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: !_options.HideNativeTitleBar);
+    }
+
+    private void OnWindowActivated(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
+    {
+        ConfigurePresenter();
+        PublishState();
     }
 
     private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args) => PublishState();
@@ -107,6 +120,7 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
 
     private void Detach()
     {
+        if (_window is not null) _window.Activated -= OnWindowActivated;
         if (_appWindow is not null) _appWindow.Changed -= OnAppWindowChanged;
         _appWindow = null;
         _window = null;
