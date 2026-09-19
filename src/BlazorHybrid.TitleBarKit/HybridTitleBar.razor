@@ -1,0 +1,105 @@
+@using Microsoft.AspNetCore.Components.Web
+@implements IDisposable
+@inject IHybridTitleBarService Window
+
+<header class="bh-titlebar @Class" role="banner" aria-label="Application title bar" @attributes="AdditionalAttributes">
+    <div class="bh-titlebar__brand" @onpointerdown="HandlePointerDown" @ondblclick="HandleDoubleClick" @oncontextmenu="HandleContextMenu" @oncontextmenu:preventDefault>
+        @if (Icon is not null)
+        {
+            <span class="bh-titlebar__icon" aria-hidden="true">@Icon</span>
+        }
+        <div class="bh-titlebar__title" title="@Title">
+            @if (TitleContent is not null)
+            {
+                @TitleContent
+            }
+            else
+            {
+                @Title
+            }
+        </div>
+    </div>
+
+    @if (Actions is not null)
+    {
+        <div class="bh-titlebar__actions" @onpointerdown:stopPropagation="true">@Actions</div>
+    }
+
+    @if (ShowWindowControls)
+    {
+        <div class="bh-titlebar__controls" aria-label="Window controls" @onpointerdown:stopPropagation="true">
+            <button type="button" class="bh-titlebar__button" title="Minimize" aria-label="Minimize window"
+                    disabled="@(!_state.IsAttached || !_state.CanMinimize)" @onclick="Window.Minimize">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10v1H3z" /></svg>
+            </button>
+            <button type="button" class="bh-titlebar__button" title="@(_state.IsMaximized ? "Restore" : "Maximize")"
+                    aria-label="@(_state.IsMaximized ? "Restore window" : "Maximize window")"
+                    disabled="@(!_state.IsAttached || !_state.CanMaximize)" @onclick="Window.ToggleMaximize">
+                @if (_state.IsMaximized)
+                {
+                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h8v8h-2V5H5V3Zm-2 3h7v7H3V6Zm1 1v5h5V7H4Z" /></svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h10v10H3V3Zm1 1v8h8V4H4Z" /></svg>
+                }
+            </button>
+            <button type="button" class="bh-titlebar__button bh-titlebar__button--close" title="Close" aria-label="Close window"
+                    disabled="@(!_state.IsAttached || !_state.CanClose)" @onclick="Window.Close">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.15 3.44 4 4 4-4 .71.71-4 4 4 4-.71.71-4-4-4 4-.71-.71 4-4-4-4 .71-.71Z" /></svg>
+            </button>
+        </div>
+    }
+</header>
+
+@code {
+    private TitleBarState _state;
+
+    /// <summary>Gets or sets the plain-text window title.</summary>
+    [Parameter] public string Title { get; set; } = "Application";
+
+    /// <summary>Gets or sets custom title content. This takes precedence over <see cref="Title"/>.</summary>
+    [Parameter] public RenderFragment? TitleContent { get; set; }
+
+    /// <summary>Gets or sets optional decorative icon content.</summary>
+    [Parameter] public RenderFragment? Icon { get; set; }
+
+    /// <summary>Gets or sets interactive content rendered before the window controls.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>Gets or sets whether minimize, maximize and close controls are rendered.</summary>
+    [Parameter] public bool ShowWindowControls { get; set; } = true;
+
+    /// <summary>Gets or sets additional CSS classes.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Gets or sets unmatched attributes applied to the title-bar header.</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _state = Window.State;
+        Window.StateChanged += HandleStateChanged;
+    }
+
+    public void Dispose() => Window.StateChanged -= HandleStateChanged;
+
+    private void HandlePointerDown(PointerEventArgs args)
+    {
+        if (args.Button == 0) Window.BeginDrag();
+    }
+
+    private void HandleDoubleClick(MouseEventArgs args)
+    {
+        if (args.Button == 0 && _state.CanMaximize) Window.ToggleMaximize();
+    }
+
+    private void HandleContextMenu(MouseEventArgs _) => Window.ShowSystemMenu();
+
+    private void HandleStateChanged(object? sender, TitleBarState state)
+    {
+        _state = state;
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

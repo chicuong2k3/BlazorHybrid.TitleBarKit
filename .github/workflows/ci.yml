@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test-pack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install MAUI workload
+        run: dotnet workload install maui-windows
+      - name: Restore
+        run: dotnet restore BlazorHybrid.TitleBarKit.slnx
+      - name: Build
+        run: dotnet build BlazorHybrid.TitleBarKit.slnx -c Release --no-restore
+      - name: Test
+        run: dotnet test BlazorHybrid.TitleBarKit.slnx -c Release --no-build
+      - name: Pack
+        run: dotnet pack src/BlazorHybrid.TitleBarKit/BlazorHybrid.TitleBarKit.csproj -c Release --no-build -o artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/*.*nupkg

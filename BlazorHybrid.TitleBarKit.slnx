@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BlazorHybrid.TitleBarKit/BlazorHybrid.TitleBarKit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BlazorHybrid.TitleBarKit.Tests/BlazorHybrid.TitleBarKit.Tests.csproj" />
+  </Folder>
+</Solution>
