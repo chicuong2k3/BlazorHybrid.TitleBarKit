@@ -18,17 +18,13 @@ public static class TitleBarKitExtensions
         var options = new TitleBarOptions();
         configure?.Invoke(options);
 
+        var backend = new WindowsWindowBackend(options);
         builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton<WindowsWindowBackend>();
-        builder.Services.AddSingleton<IWindowBackend>(services => services.GetRequiredService<WindowsWindowBackend>());
+        builder.Services.AddSingleton(backend);
+        builder.Services.AddSingleton<IWindowBackend>(backend);
         builder.Services.AddSingleton<IHybridTitleBarService, HybridTitleBarService>();
         builder.ConfigureLifecycleEvents(events => events.AddWindows(windows =>
-            windows.OnWindowCreated(window =>
-            {
-                var services = IPlatformApplication.Current?.Services
-                    ?? throw new InvalidOperationException("The MAUI service provider is not available.");
-                services.GetRequiredService<WindowsWindowBackend>().Attach(window);
-            })));
+            windows.OnWindowCreated(backend.Attach)));
 
         return builder;
     }
