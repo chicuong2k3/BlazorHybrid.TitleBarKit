@@ -42,14 +42,15 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         // for the duration of the drag operation.
         window.DispatcherQueue.TryEnqueue(() =>
         {
-            if (_windowHandle != windowHandle) return;
+            if (_windowHandle != windowHandle || !NativeMethods.GetCursorPos(out var point)) return;
 
             NativeMethods.ReleaseCapture();
+            var coordinates = unchecked((nint)((point.X & 0xFFFF) | ((point.Y & 0xFFFF) << 16)));
             NativeMethods.SendMessage(
                 windowHandle,
-                NativeMethods.WmSysCommand,
-                NativeMethods.ScMove | NativeMethods.HtCaption,
-                0);
+                NativeMethods.WmNcLButtonDown,
+                NativeMethods.HtCaption,
+                coordinates);
         });
     }
 
