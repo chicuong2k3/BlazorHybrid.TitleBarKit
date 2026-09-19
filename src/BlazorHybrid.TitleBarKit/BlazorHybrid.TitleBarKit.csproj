@@ -3,6 +3,9 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <UseMaui>true</UseMaui>
+    <!-- The host application supplies BlazorWebView runtime assets. Referencing that package
+         here would duplicate _framework static assets in consuming MAUI applications. -->
+    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
     <SingleProject>true</SingleProject>
     <RootNamespace>BlazorHybrid.TitleBarKit</RootNamespace>
     <AssemblyName>BlazorHybrid.TitleBarKit</AssemblyName>
