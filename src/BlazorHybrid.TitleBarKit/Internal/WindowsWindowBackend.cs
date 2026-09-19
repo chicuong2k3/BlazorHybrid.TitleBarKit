@@ -33,9 +33,24 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
 
     public void BeginDrag()
     {
-        if (_windowHandle == 0) return;
-        NativeMethods.ReleaseCapture();
-        NativeMethods.SendMessage(_windowHandle, NativeMethods.WmNcLButtonDown, NativeMethods.HtCaption, 0);
+        var window = _window;
+        var windowHandle = _windowHandle;
+        if (window is null || windowHandle == 0) return;
+
+        // Do not synchronously enter Windows' modal move loop from a WebView callback.
+        // Queue it on the native dispatcher so the callback can return before SendMessage blocks
+        // for the duration of the drag operation.
+        window.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_windowHandle != windowHandle) return;
+
+            NativeMethods.ReleaseCapture();
+            NativeMethods.SendMessage(
+                windowHandle,
+                NativeMethods.WmSysCommand,
+                NativeMethods.ScMove | NativeMethods.HtCaption,
+                0);
+        });
     }
 
     public void Minimize()
@@ -144,7 +159,7 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
     private void PublishState()
     {
         var presenter = Presenter;
-        State = presenter is null
+        var nextState = presenter is null
             ? TitleBarState.Detached
             : new TitleBarState(
                 true,
@@ -154,6 +169,12 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
                 presenter.IsMinimizable,
                 presenter.IsResizable,
                 _options.IsClosable);
+
+        // AppWindow raises Changed continuously while moving or resizing. Re-rendering
+        // the WebView title bar for every position update overwhelms its input loop.
+        if (nextState == State) return;
+
+        State = nextState;
         StateChanged?.Invoke(this, State);
     }
 

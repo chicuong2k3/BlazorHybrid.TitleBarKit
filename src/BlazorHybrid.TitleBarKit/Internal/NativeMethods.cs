@@ -4,9 +4,9 @@ namespace BlazorHybrid.TitleBarKit.Internal;
 
 internal static partial class NativeMethods
 {
-    internal const uint WmNcLButtonDown = 0x00A1;
     internal const int HtCaption = 0x0002;
     internal const uint WmSysCommand = 0x0112;
+    internal const int ScMove = 0xF010;
     internal const uint TpmRightButton = 0x0002;
     internal const uint TpmReturnCommand = 0x0100;
     internal const int GwlStyle = -16;
