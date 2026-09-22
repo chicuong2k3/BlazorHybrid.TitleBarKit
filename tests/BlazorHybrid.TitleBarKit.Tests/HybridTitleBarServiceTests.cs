@@ -69,6 +69,7 @@ public sealed class HybridTitleBarServiceTests
         public int MenuCalls { get; private set; }
         public int CloseCalls { get; private set; }
         public void BeginDrag() => DragCalls++;
+        public void CancelPendingDrag() { }
         public void Minimize() => MinimizeCalls++;
         public void Maximize() => MaximizeCalls++;
         public void Restore() => RestoreCalls++;

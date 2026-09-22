@@ -12,6 +12,9 @@ public interface IHybridTitleBarService
     /// <summary>Begins the operating system's native window-drag operation. The caller starts this only after the pointer has moved while the button is still held.</summary>
     void BeginDrag();
 
+    /// <summary>Cancels a drag that was requested but has not entered the operating system's move loop yet. Call this when the pointer is released or cancelled.</summary>
+    void CancelPendingDrag();
+
     /// <summary>Minimizes the attached window.</summary>
     void Minimize();
 

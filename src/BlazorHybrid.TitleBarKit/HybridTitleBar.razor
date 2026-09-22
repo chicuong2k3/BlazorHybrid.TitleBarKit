@@ -93,7 +93,7 @@
 
     private void HandlePointerDown(PointerEventArgs args)
     {
-        if (args.Button != 0) return;
+        if (args.Button != 0 || _state.IsMaximized) return;
         _dragArmed = true;
         _dragOriginX = args.ClientX;
         _dragOriginY = args.ClientY;
@@ -104,6 +104,14 @@
         if (!_dragArmed || (args.Buttons & 1) == 0)
         {
             _dragArmed = false;
+            Window.CancelPendingDrag();
+            return;
+        }
+
+        if (_state.IsMaximized)
+        {
+            _dragArmed = false;
+            Window.CancelPendingDrag();
             return;
         }
 
@@ -115,7 +123,11 @@
         Window.BeginDrag();
     }
 
-    private void CancelDrag(PointerEventArgs _) => _dragArmed = false;
+    private void CancelDrag(PointerEventArgs _)
+    {
+        _dragArmed = false;
+        Window.CancelPendingDrag();
+    }
 
     private void HandleDoubleClick(MouseEventArgs args)
     {

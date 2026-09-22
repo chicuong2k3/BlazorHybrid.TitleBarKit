@@ -5,6 +5,7 @@ internal interface IWindowBackend
     event EventHandler<TitleBarState>? StateChanged;
     TitleBarState State { get; }
     void BeginDrag();
+    void CancelPendingDrag();
     void Minimize();
     void Maximize();
     void Restore();

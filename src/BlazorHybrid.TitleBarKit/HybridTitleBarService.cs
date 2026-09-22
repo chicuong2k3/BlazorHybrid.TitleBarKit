@@ -17,6 +17,7 @@ internal sealed class HybridTitleBarService : IHybridTitleBarService, IDisposabl
     public TitleBarState State => _backend.State;
 
     public void BeginDrag() => _backend.BeginDrag();
+    public void CancelPendingDrag() => _backend.CancelPendingDrag();
     public void Minimize() => _backend.Minimize();
     public void Maximize() => _backend.Maximize();
     public void Restore() => _backend.Restore();

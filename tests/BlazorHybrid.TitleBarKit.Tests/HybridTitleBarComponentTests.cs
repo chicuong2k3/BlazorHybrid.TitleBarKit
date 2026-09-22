@@ -75,6 +75,7 @@ public sealed class HybridTitleBarComponentTests
         public int CloseCalls { get; private set; }
         public int DragCalls { get; private set; }
         public void BeginDrag() => DragCalls++;
+        public void CancelPendingDrag() { }
         public void Minimize() => MinimizeCalls++;
         public void Maximize() { }
         public void Restore() { }

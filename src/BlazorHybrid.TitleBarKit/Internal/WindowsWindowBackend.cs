@@ -10,6 +10,7 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
     private AppWindow? _appWindow;
     private WinUiWindow? _window;
     private nint _windowHandle;
+    private long _dragGeneration;
 
     internal WindowsWindowBackend(TitleBarOptions options) => _options = options;
 
@@ -37,16 +38,27 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         var windowHandle = _windowHandle;
         if (window is null || windowHandle == 0) return;
 
+        // A maximized window has no free position to drag to. Entering the
+        // move loop here would jump or stick instead of behaving like Windows.
+        if (Presenter?.State == OverlappedPresenterState.Maximized) return;
+
+        // Blazor pointer events arrive asynchronously through the WebView, so a
+        // pointerup can race ahead of this dispatch. Tag the request so a later
+        // CancelPendingDrag invalidates it before the move loop is entered.
+        var generation = Interlocked.Increment(ref _dragGeneration);
+
         // Do not synchronously enter Windows' modal move loop from a WebView callback.
         // Queue it on the native dispatcher so the callback can return before SendMessage blocks
         // for the duration of the drag operation.
         window.DispatcherQueue.TryEnqueue(() =>
         {
+            if (generation != Volatile.Read(ref _dragGeneration)) return;
             if (_windowHandle != windowHandle || !NativeMethods.GetCursorPos(out var point)) return;
 
             // A click that has already been released must not enter the move loop.
             // Otherwise the window sticks to the cursor until the next click.
             if ((NativeMethods.GetAsyncKeyState(NativeMethods.VkLButton) & 0x8000) == 0) return;
+            if (generation != Volatile.Read(ref _dragGeneration)) return;
 
             NativeMethods.ReleaseCapture();
             var coordinates = unchecked((nint)((point.X & 0xFFFF) | ((point.Y & 0xFFFF) << 16)));
@@ -57,6 +69,8 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
                 coordinates);
         });
     }
+
+    public void CancelPendingDrag() => Interlocked.Increment(ref _dragGeneration);
 
     public void Minimize()
     {
