@@ -131,7 +131,8 @@
                 await _module.InvokeVoidAsync("unobserve", _brand);
                 await _module.DisposeAsync();
             }
-            catch (JSDisconnectedException) { }
+            catch (JSException) { }
+            catch (ObjectDisposedException) { }
         }
         _reference?.Dispose();
     }
