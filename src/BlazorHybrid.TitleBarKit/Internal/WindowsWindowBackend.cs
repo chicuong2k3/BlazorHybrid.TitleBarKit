@@ -10,6 +10,7 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
     private AppWindow? _appWindow;
     private WinUiWindow? _window;
     private nint _windowHandle;
+    private bool _chromeApplied;
 
     internal WindowsWindowBackend(TitleBarOptions options) => _options = options;
 
@@ -97,25 +98,46 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
 
     private void ConfigurePresenter()
     {
-        if (Presenter is not { } presenter) return;
-
-        // MAUI can apply its native caption after OnWindowCreated. Disable content
-        // extension and reapply the presenter chrome when the WinUI window activates.
-        if (_options.HideNativeTitleBar && _window is not null)
+        try
         {
-            _window.ExtendsContentIntoTitleBar = false;
-            _window.SetTitleBar(null);
+            if (Presenter is not { } presenter) return;
+
+            var queue = _window?.DispatcherQueue;
+            if (queue is not null && !queue.HasThreadAccess)
+            {
+                queue.TryEnqueue(ConfigurePresenter);
+                return;
+            }
+
+            // MAUI can apply its native caption after OnWindowCreated. Disable content
+            // extension and reapply the presenter chrome when the WinUI window activates.
+            if (_options.HideNativeTitleBar && _window is not null)
+            {
+                _window.ExtendsContentIntoTitleBar = false;
+                _window.SetTitleBar(null);
+            }
+
+            presenter.IsMinimizable = _options.IsMinimizable;
+            presenter.IsMaximizable = _options.IsMaximizable;
+            presenter.IsResizable = _options.IsResizable;
+
+            // SetBorderAndTitleBar throws 0x800710DD if the dispatcher queue is not ready,
+            // and WinUI turns that into a process-ending stowed exception. Apply it once.
+            if (!_chromeApplied)
+            {
+                presenter.SetBorderAndTitleBar(
+                    hasBorder: !_options.HideNativeTitleBar,
+                    hasTitleBar: !_options.HideNativeTitleBar);
+                _chromeApplied = true;
+            }
+
+            if (_options.HideNativeTitleBar)
+                ApplyNativeWindowStyles();
         }
-
-        presenter.IsMinimizable = _options.IsMinimizable;
-        presenter.IsMaximizable = _options.IsMaximizable;
-        presenter.IsResizable = _options.IsResizable;
-        presenter.SetBorderAndTitleBar(
-            hasBorder: !_options.HideNativeTitleBar,
-            hasTitleBar: !_options.HideNativeTitleBar);
-
-        if (_options.HideNativeTitleBar)
-            ApplyNativeWindowStyles();
+        catch (Exception)
+        {
+            // Leave the native caption in place rather than taking down the process.
+        }
     }
 
     private void ApplyNativeWindowStyles()
@@ -186,6 +208,7 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         _appWindow = null;
         _window = null;
         _windowHandle = 0;
+        _chromeApplied = false;
         State = TitleBarState.Detached;
     }
 }
