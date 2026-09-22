@@ -68,6 +68,7 @@ public sealed class HybridTitleBarServiceTests
         public int RestoreCalls { get; private set; }
         public int MenuCalls { get; private set; }
         public int CloseCalls { get; private set; }
+        public void SetCaptionRegion(int x, int y, int width, int height) { }
         public void BeginDrag() => DragCalls++;
         public void CancelPendingDrag() { }
         public void Minimize() => MinimizeCalls++;

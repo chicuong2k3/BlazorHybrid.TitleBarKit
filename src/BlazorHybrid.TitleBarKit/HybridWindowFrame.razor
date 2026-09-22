@@ -1,5 +1,5 @@
 <div class="bh-window-frame @Class" @attributes="AdditionalAttributes">
-    <HybridTitleBar Title="@Title" Icon="@Icon" TitleContent="@TitleContent" Actions="@Actions" ShowWindowControls="@ShowWindowControls" />
+    <HybridTitleBar Title="@Title" Icon="@Icon" TitleContent="@TitleContent" Actions="@Actions" ShowWindowControls="@ShowWindowControls" WindowControls="@WindowControls" />
     <div class="bh-window-frame__content">
         @ChildContent
     </div>
@@ -18,6 +18,8 @@
     [Parameter, EditorRequired] public RenderFragment? ChildContent { get; set; }
     /// <summary>Gets or sets whether native window controls are rendered.</summary>
     [Parameter] public bool ShowWindowControls { get; set; } = true;
+    /// <summary>Custom window controls when native controls are disabled in TitleBarOptions.</summary>
+    [Parameter] public RenderFragment<TitleBarState>? WindowControls { get; set; }
     /// <summary>Gets or sets additional frame CSS classes.</summary>
     [Parameter] public string? Class { get; set; }
     /// <summary>Gets or sets unmatched attributes applied to the frame.</summary>

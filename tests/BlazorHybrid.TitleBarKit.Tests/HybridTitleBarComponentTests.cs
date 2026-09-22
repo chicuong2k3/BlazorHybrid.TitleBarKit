@@ -1,6 +1,6 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
-using PointerEventArgs = Microsoft.AspNetCore.Components.Web.PointerEventArgs;
+
 
 namespace BlazorHybrid.TitleBarKit.Tests;
 
@@ -10,6 +10,7 @@ public sealed class HybridTitleBarComponentTests
     public void Renders_accessible_window_controls_and_forwards_clicks()
     {
         using var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
         var service = new FakeTitleBarService
         {
             State = new TitleBarState(true, false, false, true, true, true, true)
@@ -31,31 +32,24 @@ public sealed class HybridTitleBarComponentTests
     }
 
     [Fact]
-    public void Drag_starts_only_after_the_pointer_moves_while_held()
+    public void Geometry_is_forwarded_without_synthetic_drag_events()
     {
         using var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
         var service = new FakeTitleBarService();
         context.Services.AddSingleton<IHybridTitleBarService>(service);
         var cut = context.Render<HybridTitleBar>();
-        var brand = cut.Find(".bh-titlebar__brand");
-
-        brand.TriggerEvent("onpointerdown", new PointerEventArgs { Button = 0, Buttons = 1, ClientX = 10, ClientY = 8 });
-        brand.TriggerEvent("onpointermove", new PointerEventArgs { Buttons = 1, ClientX = 12, ClientY = 9 });
+        cut.Instance.UpdateCaptionRegion(10, 20, 500, 40);
+        Assert.Equal((10, 20, 500, 40), service.CaptionRegion);
         Assert.Equal(0, service.DragCalls);
-
-        brand.TriggerEvent("onpointerup", new PointerEventArgs { Button = 0, ClientX = 12, ClientY = 9 });
-        brand.TriggerEvent("onpointermove", new PointerEventArgs { Buttons = 1, ClientX = 40, ClientY = 8 });
-        Assert.Equal(0, service.DragCalls);
-
-        brand.TriggerEvent("onpointerdown", new PointerEventArgs { Button = 0, Buttons = 1, ClientX = 10, ClientY = 8 });
-        brand.TriggerEvent("onpointermove", new PointerEventArgs { Buttons = 1, ClientX = 20, ClientY = 8 });
-        Assert.Equal(1, service.DragCalls);
+        Assert.DoesNotContain("onpointermove", cut.Markup);
     }
 
     [Fact]
     public void Reflects_maximized_state_and_disabled_capabilities()
     {
         using var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
         var service = new FakeTitleBarService { State = new TitleBarState(true, true, false, false, false, false, true) };
         context.Services.AddSingleton<IHybridTitleBarService>(service);
 
@@ -66,6 +60,46 @@ public sealed class HybridTitleBarComponentTests
         Assert.False(cut.Find("button[aria-label='Close window']").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void Custom_controls_receive_state_and_replace_default_buttons()
+    {
+        using var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        var service = new FakeTitleBarService
+        {
+            State = new TitleBarState(true, true, false, true, true, true, true)
+        };
+        context.Services.AddSingleton<IHybridTitleBarService>(service);
+        var cut = context.Render<HybridTitleBar>(parameters => parameters
+            .Add(p => p.WindowControls, state => builder =>
+            {
+                builder.OpenElement(0, "button");
+                builder.AddAttribute(1, "id", "custom-restore");
+                builder.AddContent(2, state.IsMaximized ? "Restore custom" : "Maximize custom");
+                builder.CloseElement();
+            }));
+        Assert.Equal("Restore custom", cut.Find("#custom-restore").TextContent);
+        Assert.Single(cut.FindAll("button"));
+    }
+
+    [Fact]
+    public void Native_controls_reserve_space_without_duplicate_html_buttons()
+    {
+        using var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.Services.AddSingleton<IHybridTitleBarService>(new FakeTitleBarService
+        {
+            State = new TitleBarState(true, false, false, true, true, true, true)
+            {
+                UsesNativeControls = true,
+                CaptionButtonsWidth = 150
+            }
+        });
+        var cut = context.Render<HybridTitleBar>();
+        Assert.Empty(cut.FindAll("button"));
+        Assert.Contains("150px", cut.Markup);
+    }
+
     private sealed class FakeTitleBarService : IHybridTitleBarService
     {
         public event EventHandler<TitleBarState>? StateChanged;
@@ -74,6 +108,8 @@ public sealed class HybridTitleBarComponentTests
         public int ToggleCalls { get; private set; }
         public int CloseCalls { get; private set; }
         public int DragCalls { get; private set; }
+        public (int, int, int, int) CaptionRegion { get; private set; }
+        public void SetCaptionRegion(int x, int y, int width, int height) => CaptionRegion = (x, y, width, height);
         public void BeginDrag() => DragCalls++;
         public void CancelPendingDrag() { }
         public void Minimize() => MinimizeCalls++;

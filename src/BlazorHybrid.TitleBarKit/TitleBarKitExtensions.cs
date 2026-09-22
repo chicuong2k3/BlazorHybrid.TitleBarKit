@@ -18,6 +18,19 @@ public static class TitleBarKitExtensions
         var options = new TitleBarOptions();
         configure?.Invoke(options);
 
+        // MAUI builds its own XAML title row after OnWindowCreated. Reserve zero
+        // space for it; HybridTitleBar owns the visible title row inside the WebView.
+        Microsoft.Maui.Handlers.WindowHandler.Mapper.AppendToMapping("TitleBarKit", (handler, window) =>
+        {
+            if (options.HideNativeTitleBar && window is Microsoft.Maui.Controls.Window mauiWindow)
+                mauiWindow.TitleBar = new Microsoft.Maui.Controls.TitleBar
+                {
+                    HeightRequest = 0,
+                    MinimumHeightRequest = 0,
+                    IsVisible = false,
+                };
+        });
+
         var backend = new WindowsWindowBackend(options);
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(backend);

@@ -10,6 +10,7 @@ internal static partial class NativeMethods
     internal const uint TpmRightButton = 0x0002;
     internal const uint TpmReturnCommand = 0x0100;
     internal const int GwlStyle = -16;
+    internal const long WsCaption = 0x00C00000L;
     internal const long WsThickFrame = 0x00040000L;
     internal const long WsSysMenu = 0x00080000L;
     internal const long WsMinimizeBox = 0x00020000L;

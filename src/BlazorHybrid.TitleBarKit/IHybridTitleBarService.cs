@@ -9,10 +9,13 @@ public interface IHybridTitleBarService
     /// <summary>Gets the latest native window state.</summary>
     TitleBarState State { get; }
 
-    /// <summary>Begins the operating system's native window-drag operation. The caller starts this only after the pointer has moved while the button is still held.</summary>
+    /// <summary>Legacy compatibility no-op. Use HybridTitleBar's native caption region instead of synthetic drag events.</summary>
     void BeginDrag();
 
-    /// <summary>Cancels a drag that was requested but has not entered the operating system's move loop yet. Call this when the pointer is released or cancelled.</summary>
+    /// <summary>Sets the native caption hit-test rectangle in client-area physical pixels.</summary>
+    void SetCaptionRegion(int x, int y, int width, int height);
+
+    /// <summary>Legacy compatibility no-op. Windows now owns caption mouse capture and release.</summary>
     void CancelPendingDrag();
 
     /// <summary>Minimizes the attached window.</summary>

@@ -10,7 +10,6 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
     private AppWindow? _appWindow;
     private WinUiWindow? _window;
     private nint _windowHandle;
-    private long _dragGeneration;
 
     internal WindowsWindowBackend(TitleBarOptions options) => _options = options;
 
@@ -32,45 +31,36 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         PublishState();
     }
 
-    public void BeginDrag()
+    // Kept for source compatibility. Native caption regions now own the entire gesture;
+    // entering a nested SendMessage move loop from a WebView callback can deadlock it.
+    public void BeginDrag() { }
+
+    public void CancelPendingDrag() { }
+
+    public void SetCaptionRegion(int x, int y, int width, int height)
     {
         var window = _window;
-        var windowHandle = _windowHandle;
-        if (window is null || windowHandle == 0) return;
-
-        // A maximized window has no free position to drag to. Entering the
-        // move loop here would jump or stick instead of behaving like Windows.
-        if (Presenter?.State == OverlappedPresenterState.Maximized) return;
-
-        // Blazor pointer events arrive asynchronously through the WebView, so a
-        // pointerup can race ahead of this dispatch. Tag the request so a later
-        // CancelPendingDrag invalidates it before the move loop is entered.
-        var generation = Interlocked.Increment(ref _dragGeneration);
-
-        // Do not synchronously enter Windows' modal move loop from a WebView callback.
-        // Queue it on the native dispatcher so the callback can return before SendMessage blocks
-        // for the duration of the drag operation.
-        window.DispatcherQueue.TryEnqueue(() =>
+        if (window is null) return;
+        void Update()
         {
-            if (generation != Volatile.Read(ref _dragGeneration)) return;
-            if (_windowHandle != windowHandle || !NativeMethods.GetCursorPos(out var point)) return;
-
-            // A click that has already been released must not enter the move loop.
-            // Otherwise the window sticks to the cursor until the next click.
-            if ((NativeMethods.GetAsyncKeyState(NativeMethods.VkLButton) & 0x8000) == 0) return;
-            if (generation != Volatile.Read(ref _dragGeneration)) return;
-
-            NativeMethods.ReleaseCapture();
-            var coordinates = unchecked((nint)((point.X & 0xFFFF) | ((point.Y & 0xFFFF) << 16)));
-            NativeMethods.SendMessage(
-                windowHandle,
-                NativeMethods.WmNcLButtonDown,
-                NativeMethods.HtCaption,
-                coordinates);
-        });
+            if (_window != window || _appWindow is null) return;
+            // MAUI's initial template layout can reset PreferredHeightOption after
+            // OnWindowCreated. Reassert our mode once the Razor title row is laid out.
+            if (_options.HideNativeTitleBar)
+                _appWindow.TitleBar.PreferredHeightOption = _options.UseNativeWindowControls
+                    ? TitleBarHeightOption.Standard : TitleBarHeightOption.Collapsed;
+            var regions = width > 0 && height > 0
+                ? new[] { new Windows.Graphics.RectInt32(x, y, width, height) }
+                : [];
+            if (_options.UseNativeWindowControls)
+                _appWindow.TitleBar.SetDragRectangles(regions);
+            else
+                Microsoft.UI.Input.InputNonClientPointerSource.GetForWindowId(_appWindow.Id)
+                    .SetRegionRects(Microsoft.UI.Input.NonClientRegionKind.Caption, regions);
+        }
+        if (window.DispatcherQueue.HasThreadAccess) Update();
+        else window.DispatcherQueue.TryEnqueue(Update);
     }
-
-    public void CancelPendingDrag() => Interlocked.Increment(ref _dragGeneration);
 
     public void Minimize()
     {
@@ -127,23 +117,20 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
 
         try
         {
-            // MAUI can put the native caption back after OnWindowCreated, so this
-            // runs again on every activation. SetBorderAndTitleBar throws 0x800710DD
-            // when the dispatcher queue is not ready, and WinUI turns that into a
-            // process-ending stowed exception.
+            // Extend content into the OS caption rather than removing WS_CAPTION.
+            // Keeping native non-client behavior preserves snap and drag-to-restore.
             if (_options.HideNativeTitleBar)
             {
-                window.ExtendsContentIntoTitleBar = false;
+                window.ExtendsContentIntoTitleBar = true;
                 window.SetTitleBar(null);
+                window.AppWindow.TitleBar.PreferredHeightOption = _options.UseNativeWindowControls
+                    ? TitleBarHeightOption.Standard
+                    : TitleBarHeightOption.Collapsed;
             }
 
             presenter.IsMinimizable = _options.IsMinimizable;
             presenter.IsMaximizable = _options.IsMaximizable;
             presenter.IsResizable = _options.IsResizable;
-            presenter.SetBorderAndTitleBar(
-                hasBorder: !_options.HideNativeTitleBar,
-                hasTitleBar: !_options.HideNativeTitleBar);
-
             if (_options.HideNativeTitleBar)
                 ApplyNativeWindowStyles();
         }
@@ -158,6 +145,10 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         if (_windowHandle == 0) return;
 
         var style = NativeMethods.GetWindowLongPtr(_windowHandle, NativeMethods.GwlStyle).ToInt64();
+        // Preserve WS_CAPTION: extending content hides its background, while the OS
+        // still supplies native non-client gestures and caption buttons. Removing it
+        // breaks native dragging even when the title bar has a drag rectangle.
+        style |= NativeMethods.WsCaption;
         style |= NativeMethods.WsSysMenu;
         style = _options.IsResizable
             ? style | NativeMethods.WsThickFrame
@@ -186,7 +177,8 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
 
     private void OnWindowActivated(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
     {
-        ConfigurePresenter();
+        // Reconfiguring OverlappedPresenter during activation is unsafe on Windows App
+        // SDK 1.7 and used to crash as soon as the custom title bar was clicked.
         PublishState();
     }
 
@@ -204,7 +196,12 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
                 presenter.IsMaximizable,
                 presenter.IsMinimizable,
                 presenter.IsResizable,
-                _options.IsClosable);
+                _options.IsClosable)
+            {
+                UsesNativeControls = _options.HideNativeTitleBar && _options.UseNativeWindowControls,
+                CaptionButtonsWidth = Math.Max(138, (_appWindow?.TitleBar.RightInset ?? 0) /
+                    (_window?.Content?.XamlRoot?.RasterizationScale ?? 1)),
+            };
 
         // AppWindow raises Changed continuously while moving or resizing. Re-rendering
         // the WebView title bar for every position update overwhelms its input loop.
