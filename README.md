@@ -52,11 +52,13 @@ builder
     });
 ```
 
-Load the component stylesheet in the Blazor host page. Referenced RCL assets are served under their conventional `_content` URL (verified in the MAUI build output at `wwwroot/_content/BlazorHybrid.TitleBarKit/titlebar.css`):
+Load the component stylesheet in the Blazor host page. MAUI Blazor Hybrid flattens referenced RCL assets into the host `wwwroot` output (verified: the MAUI build copies it to `wwwroot/titlebar.css`):
 
 ```html
-<link rel="stylesheet" href="_content/BlazorHybrid.TitleBarKit/titlebar.css" />
+<link rel="stylesheet" href="titlebar.css" />
 ```
+
+If a non-MAUI static-web-assets host is used for tooling or previews, its conventional RCL URL is `_content/BlazorHybrid.TitleBarKit/titlebar.css`.
 
 Import the component namespace:
 
