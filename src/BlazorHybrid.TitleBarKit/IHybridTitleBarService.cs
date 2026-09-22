@@ -9,7 +9,7 @@ public interface IHybridTitleBarService
     /// <summary>Gets the latest native window state.</summary>
     TitleBarState State { get; }
 
-    /// <summary>Begins the operating system's native window-drag operation.</summary>
+    /// <summary>Begins the operating system's native window-drag operation. The caller starts this only after the pointer has moved while the button is still held.</summary>
     void BeginDrag();
 
     /// <summary>Minimizes the attached window.</summary>

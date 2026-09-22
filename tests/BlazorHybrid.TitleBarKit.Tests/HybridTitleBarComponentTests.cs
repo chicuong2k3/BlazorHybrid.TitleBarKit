@@ -1,5 +1,6 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using PointerEventArgs = Microsoft.AspNetCore.Components.Web.PointerEventArgs;
 
 namespace BlazorHybrid.TitleBarKit.Tests;
 
@@ -30,6 +31,28 @@ public sealed class HybridTitleBarComponentTests
     }
 
     [Fact]
+    public void Drag_starts_only_after_the_pointer_moves_while_held()
+    {
+        using var context = new BunitContext();
+        var service = new FakeTitleBarService();
+        context.Services.AddSingleton<IHybridTitleBarService>(service);
+        var cut = context.Render<HybridTitleBar>();
+        var brand = cut.Find(".bh-titlebar__brand");
+
+        brand.TriggerEvent("onpointerdown", new PointerEventArgs { Button = 0, Buttons = 1, ClientX = 10, ClientY = 8 });
+        brand.TriggerEvent("onpointermove", new PointerEventArgs { Buttons = 1, ClientX = 12, ClientY = 9 });
+        Assert.Equal(0, service.DragCalls);
+
+        brand.TriggerEvent("onpointerup", new PointerEventArgs { Button = 0, ClientX = 12, ClientY = 9 });
+        brand.TriggerEvent("onpointermove", new PointerEventArgs { Buttons = 1, ClientX = 40, ClientY = 8 });
+        Assert.Equal(0, service.DragCalls);
+
+        brand.TriggerEvent("onpointerdown", new PointerEventArgs { Button = 0, Buttons = 1, ClientX = 10, ClientY = 8 });
+        brand.TriggerEvent("onpointermove", new PointerEventArgs { Buttons = 1, ClientX = 20, ClientY = 8 });
+        Assert.Equal(1, service.DragCalls);
+    }
+
+    [Fact]
     public void Reflects_maximized_state_and_disabled_capabilities()
     {
         using var context = new BunitContext();
@@ -50,7 +73,8 @@ public sealed class HybridTitleBarComponentTests
         public int MinimizeCalls { get; private set; }
         public int ToggleCalls { get; private set; }
         public int CloseCalls { get; private set; }
-        public void BeginDrag() { }
+        public int DragCalls { get; private set; }
+        public void BeginDrag() => DragCalls++;
         public void Minimize() => MinimizeCalls++;
         public void Maximize() { }
         public void Restore() { }

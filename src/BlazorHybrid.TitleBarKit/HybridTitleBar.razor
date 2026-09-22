@@ -3,7 +3,7 @@
 @inject IHybridTitleBarService Window
 
 <header class="bh-titlebar @Class" role="banner" aria-label="Application title bar" @attributes="AdditionalAttributes">
-    <div class="bh-titlebar__brand" @onpointerdown="HandlePointerDown" @ondblclick="HandleDoubleClick" @oncontextmenu="HandleContextMenu" @oncontextmenu:preventDefault>
+    <div class="bh-titlebar__brand" @onpointerdown="HandlePointerDown" @onpointermove="HandlePointerMove" @onpointerup="CancelDrag" @onpointercancel="CancelDrag" @ondblclick="HandleDoubleClick" @oncontextmenu="HandleContextMenu" @oncontextmenu:preventDefault>
         @if (Icon is not null)
         {
             <span class="bh-titlebar__icon" aria-hidden="true">@Icon</span>
@@ -54,6 +54,12 @@
 
 @code {
     private TitleBarState _state;
+    private bool _dragArmed;
+    private double _dragOriginX;
+    private double _dragOriginY;
+
+    // Windows' default SM_CXDRAG / SM_CYDRAG. A press that stays inside this box is a click.
+    private const double DragThreshold = 4;
 
     /// <summary>Gets or sets the plain-text window title.</summary>
     [Parameter] public string Title { get; set; } = "Application";
@@ -87,8 +93,29 @@
 
     private void HandlePointerDown(PointerEventArgs args)
     {
-        if (args.Button == 0) Window.BeginDrag();
+        if (args.Button != 0) return;
+        _dragArmed = true;
+        _dragOriginX = args.ClientX;
+        _dragOriginY = args.ClientY;
     }
+
+    private void HandlePointerMove(PointerEventArgs args)
+    {
+        if (!_dragArmed || (args.Buttons & 1) == 0)
+        {
+            _dragArmed = false;
+            return;
+        }
+
+        var dx = args.ClientX - _dragOriginX;
+        var dy = args.ClientY - _dragOriginY;
+        if (dx * dx + dy * dy < DragThreshold * DragThreshold) return;
+
+        _dragArmed = false;
+        Window.BeginDrag();
+    }
+
+    private void CancelDrag(PointerEventArgs _) => _dragArmed = false;
 
     private void HandleDoubleClick(MouseEventArgs args)
     {

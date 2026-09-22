@@ -10,7 +10,6 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
     private AppWindow? _appWindow;
     private WinUiWindow? _window;
     private nint _windowHandle;
-    private bool _chromeApplied;
 
     internal WindowsWindowBackend(TitleBarOptions options) => _options = options;
 
@@ -44,6 +43,10 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         window.DispatcherQueue.TryEnqueue(() =>
         {
             if (_windowHandle != windowHandle || !NativeMethods.GetCursorPos(out var point)) return;
+
+            // A click that has already been released must not enter the move loop.
+            // Otherwise the window sticks to the cursor until the next click.
+            if ((NativeMethods.GetAsyncKeyState(NativeMethods.VkLButton) & 0x8000) == 0) return;
 
             NativeMethods.ReleaseCapture();
             var coordinates = unchecked((nint)((point.X & 0xFFFF) | ((point.Y & 0xFFFF) << 16)));
@@ -98,45 +101,41 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
 
     private void ConfigurePresenter()
     {
+        var window = _window;
+        if (window is null || Presenter is not { } presenter) return;
+
+        var queue = window.DispatcherQueue;
+        if (!queue.HasThreadAccess)
+        {
+            queue.TryEnqueue(ConfigurePresenter);
+            return;
+        }
+
         try
         {
-            if (Presenter is not { } presenter) return;
-
-            var queue = _window?.DispatcherQueue;
-            if (queue is not null && !queue.HasThreadAccess)
+            // MAUI can put the native caption back after OnWindowCreated, so this
+            // runs again on every activation. SetBorderAndTitleBar throws 0x800710DD
+            // when the dispatcher queue is not ready, and WinUI turns that into a
+            // process-ending stowed exception.
+            if (_options.HideNativeTitleBar)
             {
-                queue.TryEnqueue(ConfigurePresenter);
-                return;
-            }
-
-            // MAUI can apply its native caption after OnWindowCreated. Disable content
-            // extension and reapply the presenter chrome when the WinUI window activates.
-            if (_options.HideNativeTitleBar && _window is not null)
-            {
-                _window.ExtendsContentIntoTitleBar = false;
-                _window.SetTitleBar(null);
+                window.ExtendsContentIntoTitleBar = false;
+                window.SetTitleBar(null);
             }
 
             presenter.IsMinimizable = _options.IsMinimizable;
             presenter.IsMaximizable = _options.IsMaximizable;
             presenter.IsResizable = _options.IsResizable;
-
-            // SetBorderAndTitleBar throws 0x800710DD if the dispatcher queue is not ready,
-            // and WinUI turns that into a process-ending stowed exception. Apply it once.
-            if (!_chromeApplied)
-            {
-                presenter.SetBorderAndTitleBar(
-                    hasBorder: !_options.HideNativeTitleBar,
-                    hasTitleBar: !_options.HideNativeTitleBar);
-                _chromeApplied = true;
-            }
+            presenter.SetBorderAndTitleBar(
+                hasBorder: !_options.HideNativeTitleBar,
+                hasTitleBar: !_options.HideNativeTitleBar);
 
             if (_options.HideNativeTitleBar)
                 ApplyNativeWindowStyles();
         }
         catch (Exception)
         {
-            // Leave the native caption in place rather than taking down the process.
+            // Keep the native caption for this attempt. The next activation retries.
         }
     }
 
@@ -208,7 +207,6 @@ internal sealed class WindowsWindowBackend : IWindowBackend, IDisposable
         _appWindow = null;
         _window = null;
         _windowHandle = 0;
-        _chromeApplied = false;
         State = TitleBarState.Detached;
     }
 }

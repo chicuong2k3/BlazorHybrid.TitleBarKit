@@ -19,6 +19,7 @@ internal static partial class NativeMethods
     internal const uint SwpNoZOrder = 0x0004;
     internal const uint SwpNoActivate = 0x0010;
     internal const uint SwpFrameChanged = 0x0020;
+    internal const int VkLButton = 0x01;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct Point
@@ -40,6 +41,9 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetCursorPos(out Point point);
+
+    [LibraryImport("user32.dll")]
+    internal static partial short GetAsyncKeyState(int virtualKey);
 
     [LibraryImport("user32.dll")]
     internal static partial uint TrackPopupMenuEx(nint menu, uint flags, int x, int y, nint windowHandle, nint reserved);
